@@ -24,8 +24,8 @@ dagre.layout.order = function() {
    */
   function run(g, cg) {
     var layering = initOrder(g);
-    var bestLayering = copyLayering(layering);
-    var bestCC = crossCount(g, layering);
+    var bestLayering = layering;
+    var bestCC = Number.POSITIVE_INFINITY;
 
     if (config.debugLevel >= 2) {
       console.log("Order phase start cross count: " + bestCC);
@@ -33,7 +33,7 @@ dagre.layout.order = function() {
 
     var cc, i, lastBest;
     for (i = 0, lastBest = 0; lastBest < 4 && i < config.iterations; ++i, ++lastBest) {
-      cc = sweep(g, i, layering);
+      cc = sweep(g, cg, i, layering);
       if (cc < bestCC) {
         bestLayering = copyLayering(layering);
         bestCC = cc;
@@ -67,17 +67,17 @@ dagre.layout.order = function() {
     return layering;
   }
 
-  function sweep(g, iter, layering) {
+  function sweep(g, cg, iter, layering) {
     var cc = 0,
         i;
     if (iter % 2 === 0) {
       for (i = 1; i < layering.length; ++i) {
-        barycenterLayer(g, layering[i - 1], layering[i], "inEdges");
+        layering[i] = barycenterLayer(g, cg, layering[i - 1], layering[i], "inEdges");
         cc += bilayerCrossCount(g, layering[i-1], layering[i]);
       }
     } else {
       for (i = layering.length - 2; i >= 0; --i) {
-        barycenterLayer(g, layering[i + 1], layering[i], "outEdges");
+        layering[i] = barycenterLayer(g, cg, layering[i + 1], layering[i], "outEdges");
         cc += bilayerCrossCount(g, layering[i], layering[i+1]);
       }
     }
@@ -89,21 +89,105 @@ dagre.layout.order = function() {
    * attempt to find an improved ordering for the movable layer such that
    * edge crossings may be reduced.
    *
-   * This algorithm is based on the barycenter method.
+   * This algorithm is based on the barycenter heuristic and the constrained
+   * crossing reduction function described in Forster, "A Fast and Simple
+   * Heuristic for Constrainted Tow-Level Crossing Reduction".
    */
-  function barycenterLayer(g, fixed, movable, neighbors) {
-    var pos = layerPos(movable);
-    var bs = barycenters(g, fixed, movable, neighbors);
+  function barycenterLayer(g, cg, fixed, movable, neighbors) {
+    var pos = layerPos(movable),
+        bs = barycenters(g, fixed, movable, neighbors),
+        ls = {},
+        counter = 0;
 
-    var toSort = movable.slice(0).sort(function(x, y) {
-      return bs[x] - bs[y] || pos[x] - pos[y];
+    // Select only constraints relevant to this layer
+    cg = cg.subgraph(movable.filter(function(u) { return cg.hasNode(u); }));
+
+    // Create singleton lists for each node
+    movable.forEach(function(u) {
+      ls[u] = {
+        weight: bs[u],
+        pos: pos[u],
+        nodes: [u]
+      };
     });
 
-    for (var i = movable.length - 1; i >= 0; --i) {
-      if (bs[movable[i]] !== -1) {
-        movable[i] = toSort.pop();
-      }
+    var e;
+    while ((e = findViolatedConstraint(cg, ls)) != null) {
+      var s = cg.source(e),
+          degS = g[neighbors](s).length,
+          t = cg.target(e),
+          degT = g[neighbors](s).length,
+          u = "_A" + ++counter,
+          b = (ls[s].weight * degS + ls[t].weight * degT) / (degS + degT);
+          pos = Math.min(ls[s].pos, ls[t].pos);
+
+      ls[u] = { weight: b, pos: pos, nodes: ls[s].nodes.concat(ls[t].nodes) };
+      delete ls[s];
+      delete ls[t];
+
+      cg.addNode(u);
+      replaceNode(u, s);
+      replaceNode(u, t);
+      cg.delNode(s);
+      cg.delNode(t);
     }
+
+    var sorted = values(ls).sort(function(x, y) {
+      return x.weight - y.weight || x.pos - y.pos;
+    });
+
+    var result = [];
+    sorted.forEach(function(x) {
+      result = result.concat(x.nodes);
+    });
+    return result;
+
+    function replaceNode(o, n) {
+      cg.inEdges(o).forEach(function(e) {
+        if (!cg.source(e) === n)
+          cg.addEdge("_S" + ++counter, cg.source(e), n);
+        cg.delEdge(e);
+      });
+      cg.outEdges(o).forEach(function(e) {
+        if (!cg.target(e) === n)
+          cg.addEdge("_S" + ++counter, n, cg.target(e));
+        cg.delEdge(e);
+      });
+    }
+  }
+
+  function findViolatedConstraint(cg, ls) {
+    var active = [],
+        incoming = {},
+        incomingCount = {};
+
+    cg.eachNode(function(u) {
+      incoming[u] = [];
+      incomingCount[u] = cg.inEdges(u).length;
+      if (cg.predecessors(u).length === 0) {
+        active.push(u);
+      }
+    });
+
+    while (active.length) {
+      var u = active.pop();
+      for (var k in incoming[u]) {
+        var e = incoming[u][k],
+            s = cg.source(e);
+        if (ls[s].weight >= ls[u].weight)
+          return e;
+      }
+      cg.outEdges(u).forEach(function(e) {
+        var t = cg.target(e),
+            inc = incoming[t];
+        inc.unshift(e);
+        if (--incomingCount[t] === 0) {
+          active.push(t);
+        }
+      });
+    }
+
+    return null;
   }
 
   /*
