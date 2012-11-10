@@ -4,7 +4,7 @@ describe("dagre.layout", function() {
   it("sets order = 0 for a single node", function() {
     var g = dagre.dot.toGraph("digraph { A [rank=0] }");
 
-    dagre.layout.order().run(g);
+    dagre.layout.order().run(g, dagre.graph());
 
     assert.equal(g.node("A").order, 0);
   });
@@ -12,7 +12,7 @@ describe("dagre.layout", function() {
   it("sets order = 0 for 2 connected nodes on different ranks", function() {
     var g = dagre.dot.toGraph("digraph { A [rank=0]; B [rank=1]; A -> B }");
 
-    dagre.layout.order().run(g);
+    dagre.layout.order().run(g, dagre.graph());
 
     assert.equal(g.node("A").order, 0);
     assert.equal(g.node("B").order, 0);
@@ -21,7 +21,7 @@ describe("dagre.layout", function() {
   it("sets order = 0 for 2 unconnected nodes on different ranks", function() {
     var g = dagre.dot.toGraph("digraph { A [rank=0]; B [rank=1]; }");
 
-    dagre.layout.order().run(g);
+    dagre.layout.order().run(g, dagre.graph());
 
     assert.equal(g.node("A").order, 0);
     assert.equal(g.node("B").order, 0);
@@ -30,7 +30,7 @@ describe("dagre.layout", function() {
   it("sets order = 0, 1 for 2 nodes on the same rank", function() {
     var g = dagre.dot.toGraph("digraph { A [rank=0]; B [rank=0]; }");
 
-    dagre.layout.order().run(g);
+    dagre.layout.order().run(g, dagre.graph());
 
     if (g.node("A").order === 0) {
       assert.equal(g.node("B").order, 1);
@@ -45,9 +45,20 @@ describe("dagre.layout", function() {
                 "A -> D; B -> D; B -> E; C -> D; C -> E }";
     var g = dagre.dot.toGraph(str);
 
-    var layering = dagre.layout.order().run(g);
+    var layering = dagre.layout.order().run(g, dagre.graph());
 
     assert.equal(dagre.layout.order.crossCount(g, layering), 1);
+  });
+
+  it("supports constraints that may produce more crossings", function() {
+    var g = dagre.dot.toGraph("digraph { A [rank=0]; B [rank=0]; C [rank=0]; D [rank=1]; E [rank=1]; " +
+                                  "A -> D; B -> D; B -> E; C -> D; C -> E }");
+    var cg = dagre.dot.toGraph("digraph { E -> D }");
+
+    var layering = dagre.layout.order().run(g, cg);
+
+    assert.equal(g.node("E").order, 0);
+    assert.equal(g.node("D").order, 1);
   });
 });
 

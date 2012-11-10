@@ -18,7 +18,11 @@ dagre.layout.order = function() {
 
   return self;
 
-  function run(g) {
+  /*
+   * `g` is the graph to order, `cg` is the constraint graph, where the edge
+   * `(u, v)` in `cg` indicates that `u` must be to the left of `v`.
+   */
+  function run(g, cg) {
     var layering = initOrder(g);
     var bestLayering = copyLayering(layering);
     var bestCC = crossCount(g, layering);

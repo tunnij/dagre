@@ -117,7 +117,7 @@ dagre.layout = function() {
       normalize(g);
 
       // Order the nodes so that edge crossings are minimized.
-      order.run(g);
+      order.run(g, dagre.graph());
 
       // Find the x and y coordinates for every node in the graph.
       position.run(g);
