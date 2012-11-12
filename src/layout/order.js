@@ -199,17 +199,18 @@ dagre.layout.order = function() {
     var fixedPos = layerPos(fixed);
 
     var bs = {};
-    movable.forEach(function(u) {
-      var b = -1;
+    movable.forEach(function(u, i) {
+      var b = 0;
       var edges = g[neighbors](u);
       if (edges.length > 0) {
-        b = 0;
         edges.forEach(function(e) {
           var source = g.source(e);
           var neighborId = source === u ? g.target(e) : source;
           b += fixedPos[neighborId];
         });
         b = b / edges.length;
+      } else {
+        b = bs[movable[i-1]] + 0.0000001 || 0;
       }
       bs[u] = b;
     });
