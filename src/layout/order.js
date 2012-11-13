@@ -126,8 +126,8 @@ dagre.layout.order = function() {
       delete ls[t];
 
       cg.addNode(u);
-      replaceNode(u, s);
-      replaceNode(u, t);
+      replaceNode(cg, u, s);
+      replaceNode(cg, u, t);
       cg.delNode(s);
       cg.delNode(t);
     }
@@ -141,19 +141,19 @@ dagre.layout.order = function() {
       result = result.concat(x.nodes);
     });
     return result;
+  }
 
-    function replaceNode(o, n) {
-      cg.inEdges(o).forEach(function(e) {
-        if (!cg.source(e) === n)
-          cg.addEdge("_S" + ++counter, cg.source(e), n);
-        cg.delEdge(e);
-      });
-      cg.outEdges(o).forEach(function(e) {
-        if (!cg.target(e) === n)
-          cg.addEdge("_S" + ++counter, n, cg.target(e));
-        cg.delEdge(e);
-      });
-    }
+  function replaceNode(cg, o, n) {
+    cg.inEdges(o).forEach(function(e) {
+      if (!cg.source(e) === n)
+        cg.addEdge(null, cg.source(e), n);
+      cg.delEdge(e);
+    });
+    cg.outEdges(o).forEach(function(e) {
+      if (!cg.target(e) === n)
+        cg.addEdge(null, n, cg.target(e));
+      cg.delEdge(e);
+    });
   }
 
   function findViolatedConstraint(cg, ls) {
