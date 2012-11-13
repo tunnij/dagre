@@ -35,7 +35,7 @@ dagre.layout.order = function() {
     for (i = 0, lastBest = 0; lastBest < 4 && i < config.iterations; ++i, ++lastBest) {
       cc = sweep(g, cg, i, layering);
       if (cc < bestCC) {
-        bestLayering = copyLayering(layering);
+        bestLayering = layering;
         bestCC = cc;
         lastBest = 0;
       }
@@ -216,10 +216,6 @@ dagre.layout.order = function() {
     });
 
     return bs;
-  }
-
-  function copyLayering(layering) {
-    return layering.map(function(l) { return l.slice(0); });
   }
 }
 
