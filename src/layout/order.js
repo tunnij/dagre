@@ -27,10 +27,6 @@ dagre.layout.order = function() {
     var bestLayering = layering;
     var bestCC = Number.POSITIVE_INFINITY;
 
-    if (config.debugLevel >= 2) {
-      console.log("Order phase start cross count: " + bestCC);
-    }
-
     var cc, i, lastBest;
     for (i = 0, lastBest = 0; lastBest < 4 && i < config.iterations; ++i, ++lastBest) {
       cc = sweep(g, cg, i, layering);
