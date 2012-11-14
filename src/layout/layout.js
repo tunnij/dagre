@@ -1,13 +1,23 @@
 dagre.layout = function() {
   // External configuration
   var config = {
-      // Nodes to lay out. At minimum must have `width` and `height` attributes.
+      // Nodes to lay out. Nodes may have be simple or composite. Simple nodes
+      // must have `width` and `height` attributes. Composite nodes, indicated
+      // by the presence of a `children` property are treated as clusters.
+      // Composite nodes may in turn have composite nodes, thus creating a tree
+      // structure. Any given node must appear either in the root nodes list
+      // or as the child of only one cluster.
       nodes: [],
       // Edges to lay out. At mimimum must have `source` and `target` attributes.
       edges: [],
       // How much debug information to include?
       debugLevel: 0,
   };
+
+  // Internal state
+  var g,      // regular graph that describes nodes and edges
+      hg,     // hierarchy tree that describes clustering
+      hgRoot; // the root of the hierarchy tree
 
   var timer = createTimer();
 
@@ -46,17 +56,33 @@ dagre.layout = function() {
 
   // Build graph and save mapping of generated ids to original nodes and edges
   function init() {
-    var g = dagre.graph();
+    g = dagre.graph();
+    hg = dagre.graph();
+    hgRoot = { id: "_ROOT", children: config.nodes };
     var nextId = 0;
 
     // Tag each node so that we can properly represent relationships when
-    // we add edges. Also copy relevant dimension information.
-    config.nodes.forEach(function(u) {
-      var id = "id" in u ? u.id : "_N" + nextId++;
-      u.dagre = { id: id, width: u.width, height: u.height };
-      g.addNode(id, u.dagre);
-    });
+    // we add edges. Also copy relevant dimension information and build up
+    // the hierarchy graph.
+    function dfs(node) {
+      var id = "id" in node ? node.id : "_N" + ++nextId;
+      node.dagre = { id: id };
+      if (node.width) node.dagre.width = node.width;
+      if (node.height) node.dagre.height = node.height;
+      if (node.children) {
+        hg.addNode(id, node.dagre);
+        node.children.forEach(function(child) {
+          dfs(child);
+          hg.addEdge(null, id, child.dagre.id);
+        });
+      } else {
+        hg.addNode(id, node.dagre);
+        g.addNode(id, node.dagre);
+      }
+    }
+    dfs(hgRoot);
 
+    // Add all edges between nodes
     config.edges.forEach(function(e) {
       var source = e.source.dagre.id;
       if (!g.hasNode(source)) {
@@ -68,9 +94,7 @@ dagre.layout = function() {
         throw new Error("Target node for '" + e + "' not in node list");
       }
 
-      e.dagre = {
-        points: []
-      };
+      e.dagre = { points: [] };
 
       // Track edges that aren't self loops - layout does nothing for self
       // loops, so they can be skipped.
@@ -83,8 +107,6 @@ dagre.layout = function() {
         g.addEdge(id, source, target, e.dagre);
       }
     });
-
-    return g;
   }
 
   function run () {
@@ -95,7 +117,7 @@ dagre.layout = function() {
       }
 
       // Build internal graph
-      var g = init();
+      init();
 
       // Make space for edge labels
       g.eachEdge(function(e, s, t, a) {
